@@ -448,7 +448,7 @@ const RSAPublicKey = struct {
         return true;
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         pf("{s}Modulus:{}", .{ prefix, std.fmt.fmtSliceHexLower(self.modulus) });
         pf("{s}PublicExponent:{}", .{ prefix, std.fmt.fmtSliceHexLower(self.publicExponent) });
     }

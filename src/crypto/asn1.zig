@@ -20,7 +20,7 @@ pub const Tag = enum(u8) {
 };
 
 pub const Decoder = struct {
-    pub fn decodeLength(reader: anytype) !u64 {
+    pub fn decodeLength(reader: anytype) !usize {
         const len = try reader.readByte();
 
         // Short form
@@ -37,7 +37,7 @@ pub const Decoder = struct {
         }
 
         var i: usize = 0;
-        var res: u64 = 0;
+        var res: usize = 0;
         while (i < len_size) : (i += 1) {
             res = (res << 8) | (try reader.readByte());
         }

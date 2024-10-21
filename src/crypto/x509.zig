@@ -156,10 +156,10 @@ pub const Certificate = struct {
 
     pub fn decodeContent(stream: *asn1.Stream, allocator: std.mem.Allocator) !Self {
         const reader = stream.reader();
-        const begin_idx = try stream.getPos();
+        const begin_idx = @as(usize, @intCast(try stream.getPos()));
         const tbs_certificate = try TBSCertificate.decode(reader, allocator);
         errdefer tbs_certificate.deinit();
-        const end_idx = try stream.getPos();
+        const end_idx = @as(usize, @intCast(try stream.getPos()));
 
         const cert_data = try allocator.alloc(u8, end_idx - begin_idx);
         errdefer allocator.free(cert_data);
@@ -292,7 +292,7 @@ pub const Certificate = struct {
         }
     }
 
-    pub fn print(self: Self, pf: *const fn ([]const u8, anytype) void) void {
+    pub fn print(self: Self, pf: *const fn (comptime []const u8, anytype) void) void {
         pf("-- TBSCertificate --", .{});
         self.tbs_certificate.print(pf, " ");
         pf("-- SignatureAlgorithm --", .{});
@@ -399,7 +399,7 @@ pub const TBSCertificate = struct {
         return res;
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         pf("{s}{}", .{ prefix, self.version });
         pf("{s}SerialNumber: {}", .{ prefix, std.fmt.fmtSliceHexLower(self.serial_number.serial.slice()) });
         pf("{s}SignatureAlgorithm:", .{prefix});
@@ -412,8 +412,10 @@ pub const TBSCertificate = struct {
         self.subject.print(pf, prefix ++ " ");
         pf("{s}SubjectPublicKeyInfo:", .{prefix});
         self.subjectPublicKeyInfo.print(pf, prefix ++ " ");
-        pf("{s}Extensions:", .{prefix});
-        self.extensions.print(pf, prefix ++ " ");
+        if (self.extensions) |extensions| {
+            pf("{s}Extensions:", .{prefix});
+            extensions.print(pf, prefix ++ " ");
+        }
     }
 };
 
@@ -500,7 +502,7 @@ pub const AlgorithmIdentifier = struct {
             };
         }
 
-        const rest_len = (try stream.getEndPos()) - (try stream.getPos());
+        const rest_len = @as(usize, @intCast(try stream.getEndPos() - try stream.getPos()));
         const parameters = try allocator.alloc(u8, rest_len);
         errdefer allocator.free(parameters);
 
@@ -513,10 +515,10 @@ pub const AlgorithmIdentifier = struct {
         };
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         var oid: [100]u8 = undefined;
-        const oid_len = asn1.Decoder.decodeOID(&oid, self.algorithm);
-        if (OIDMap.getEntryByBytes(self.algorithm)) |e| {
+        const oid_len = asn1.Decoder.decodeOID(&oid, self.algorithm.id);
+        if (OIDMap.getEntryByBytes(self.algorithm.id)) |e| {
             pf("{s}Algorithm = {s}", .{ prefix, e.display_name });
         } else |e| {
             pf("{s}Algorithm = {s}({})", .{ prefix, oid[0..oid_len], e });
@@ -592,7 +594,7 @@ pub const Name = struct {
         return res;
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         for (self.rdn_sequence.items) |r| {
             r.print(pf, prefix ++ " ");
         }
@@ -661,7 +663,7 @@ const RelativeDistinguishedName = struct {
         return res;
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         pf("{s}RelativeDistinguishedName", .{prefix});
         for (self.attrs.items) |a| {
             a.print(pf, prefix ++ " ");
@@ -700,7 +702,7 @@ const AttributeTypeAndValue = struct {
     }
 
     pub fn decodeContent(stream: *asn1.Stream, allocator: std.mem.Allocator) !Self {
-        const len = try stream.getEndPos();
+        const len = @as(usize, @intCast(try stream.getEndPos()));
         const reader = stream.reader();
 
         const attr_type = try asn1.ObjectIdentifier.decode(reader, allocator);
@@ -731,10 +733,10 @@ const AttributeTypeAndValue = struct {
         return res;
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         var oid: [100]u8 = undefined;
-        const oid_len = asn1.Decoder.decodeOID(&oid, self.attr_type);
-        if (OIDMap.getEntryByBytes(self.attr_type)) |e| {
+        const oid_len = asn1.Decoder.decodeOID(&oid, self.attr_type.id);
+        if (OIDMap.getEntryByBytes(self.attr_type.id)) |e| {
             pf("{s}{s} = {s}", .{ prefix, e.display_name, self.attr_value });
         } else |e| {
             pf("{s}{s}({}) = {s} ", .{ prefix, oid[0..oid_len], e, self.attr_value });
@@ -787,7 +789,7 @@ const Validity = struct {
         };
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         self.notBefore.print(pf, prefix ++ " notBefore:");
         self.notAfter.print(pf, prefix ++ " notAfter:");
     }
@@ -828,10 +830,11 @@ const Time = struct {
         return res;
     }
 
-    pub fn print(self: Self) void {
+    pub fn print(self: Self, comptime pf: *const fn (comptime []const u8, anytype) void, prefix: []const u8) void {
         var out: [100]u8 = undefined;
-        const len = self.writeToBuf(&out) catch 0;
-        log.debug("{s}", .{out[0..len]});
+        const len = @as(usize, @intCast(self.writeToBuf(&out) catch 0));
+        //log.debug("{s}", .{out[0..len]});
+        pf("{s}{s}", .{ prefix, out[0..len] });
     }
 
     // "YYMMDDhhmm[ss]Z" or "YYMMDDhhmm[ss](+|-)hhmm"
@@ -968,7 +971,7 @@ const Time = struct {
         try expect(ts == 2145916799);
     }
 
-    pub fn writeToBuf(self: Self, out: []u8) !usize {
+    pub fn writeToBuf(self: Self, out: []u8) !u64 {
         var stream = io.fixedBufferStream(out);
         const plus_s = if (self.plus) "+" else "-";
         try std.fmt.format(stream.writer(), "{d:0>2}-{d:0>2}-{d:0>2}-{d:0>2}:{d:0>2}:{d:0>2}{s}{d:0>2}:{d:0>2}", .{ self.year, self.month, self.day, self.hour, self.minute, self.second, plus_s, self.t_hour, self.t_minute });
@@ -1050,11 +1053,16 @@ const SubjectPublicKeyInfo = struct {
         };
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
-        const a = OIDMap.getEntryByBytes(self.algorithm.algorithm) catch OIDEntry{ .oid = "", .display_name = "Unexpected" };
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
+        const a = OIDMap.getEntryByBytes(self.algorithm.algorithm.id) catch OIDEntry{ .oid = "", .display_name = "Unexpected" };
         pf("{s}Algorithm: {s}", .{ prefix, a.display_name });
-        pf("{s}RASPublicKey:", .{prefix});
-        self.rsaPublicKey.print(pf, prefix ++ " ");
+        switch (self.publicKey) {
+            .rsa => |k| {
+                pf("{s}RASPublicKey:", .{prefix});
+                k.print(pf, prefix);
+            },
+            else => {},
+        }
     }
 };
 
@@ -1093,7 +1101,7 @@ const Extensions = struct {
         };
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         pf("{s}ExtensionNum={}", .{ prefix, self.extensions.items.len });
         for (self.extensions.items) |e| {
             e.print(pf, prefix ++ " ");
@@ -1140,7 +1148,7 @@ const Extension = struct {
 
     pub fn decodeContent(stream: *asn1.Stream, allocator: std.mem.Allocator) !Self {
         const reader = stream.reader();
-        const len = try stream.getEndPos();
+        const len = @as(usize, @intCast(try stream.getEndPos()));
 
         const oid = try asn1.ObjectIdentifier.decode(reader, allocator);
         errdefer oid.deinit();
@@ -1174,10 +1182,10 @@ const Extension = struct {
         return self.len + 1 + asn1.Decoder.getLengthSize(self.len);
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         var oid: [100]u8 = undefined;
-        const oid_len = asn1.Decoder.decodeOID(&oid, self.oid);
-        if (OIDMap.getEntryByBytes(self.oid)) |e| {
+        const oid_len = asn1.Decoder.decodeOID(&oid, self.oid.id);
+        if (OIDMap.getEntryByBytes(self.oid.id)) |e| {
             pf("{s}ExtensionName = {s}", .{ prefix, e.display_name });
         } else |e| {
             pf("{s}ExtensionName = {s}({})", .{ prefix, oid[0..oid_len], e });
@@ -1244,7 +1252,7 @@ pub const SignatureValue = struct {
         };
     }
 
-    pub fn print(self: Self, comptime pf: fn ([]const u8, anytype) void, comptime prefix: []const u8) void {
+    pub fn print(self: Self, comptime pf: fn (comptime []const u8, anytype) void, comptime prefix: []const u8) void {
         pf("{s}Value = {}", .{ prefix, std.fmt.fmtSliceHexLower(self.value) });
     }
 };
